@@ -1,0 +1,6 @@
+parameters:
+#  iapp_service_name: LTM_for_ITC
+  ve_instance: 1.2.3.4
+#  bigip_un: admin
+#  bigip_pw: admin
+  pm__pool_AFM:

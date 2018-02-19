@@ -1,0 +1,92 @@
+heat_template_version: 2015-04-30
+
+description: Deploy F5 config disaggregated AFM/CGNAT F5 cluster
+
+parameters:
+  bigip_un:
+    type: string
+    label: BigIP Login Username
+    default: admin
+  bigip_pw:
+    type: string
+    label: BigIP Login Password
+    default: admin    
+ 
+  ltm_ve_count:  
+    type: number
+    label: Number of LTM VE instances to configure
+  ltm_instances:
+    type: json
+    label:  LTM VEs mgmt IP address map
+    description: Where the iApp will be deployed. Typically this is the IP address of the management interface  
+  ltm_iapp_service_name:
+    type: string
+    label: LTM iApp Service Name
+    default: LTM_for_ITC 
+  pm__pool_AFM:
+    type: string
+    label: Gi FW - AFM pool members to be used in all LTM instances
+
+  afm_ve_count:
+    type: number
+    label: Number of AFM VE instances to configure
+  afm_instances:
+    type: json
+    label:  AFM VEs mgmt IP address map
+    description: Where the iApp will be deployed. Typically this is the IP address of the management interface
+  afm_iapp_service_name:
+    type: string
+    label: AFM iApp Service Name
+    default: AFM_for_ITC 
+  nat_subnet_M:
+    type: json
+    label: NAT subnets map to be used in the CGNAT pool of each AFM instance
+  index_var_text:
+    type: string
+    label: Prefix for maps
+    default: "ind-"
+  index_var_text2:
+    type: string
+    label: Prefix for maps
+    default: "ind-"
+
+resources:
+  N_ltm_configs:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: { get_param: ltm_ve_count }
+      index_var: 
+        str_replace:
+          template: $text"%index%"
+          params: 
+           $text: { get_param: index_var_text }
+      resource_def:
+        # A new resource
+        type: LTM_for_ITC.yaml
+        parameters:
+          bigip_un: { get_param: bigip_un }
+          bigip_pw: { get_param: bigip_pw }
+          ve_instance: { get_param: [ltm_instances, { get_param: index_var }] }
+          iapp_service_name: { get_param: ltm_iapp_service_name }
+          pm__pool_AFM: { get_param: pm__pool_AFM }
+
+  M_afm_configs:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: { get_param: afm_ve_count }
+      index_var: 
+        str_replace:
+          template: $text"%index%"
+          params: 
+           $text: { get_param: index_var_text2 }
+      resource_def:
+        # A new resource
+        type: AFM_for_ITC.yaml
+        parameters:
+          index_var: { get_param: [N_afm_configs, index_var] }
+          bigip_un: { get_param: bigip_un }
+          bigip_pw: { get_param: bigip_pw }
+          ve_instance: { get_param: [afm_instances, { get_param: index_var }] }
+          iapp_service_name: { get_param: afm_iapp_service_name }
+          nat_subnet: { get_param: [nat_subnet_M, { get_param: index_var }] }
+

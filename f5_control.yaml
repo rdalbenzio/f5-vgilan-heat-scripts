@@ -1,0 +1,743 @@
+heat_template_version: 2015-04-30
+
+description: This template deploys a standard f5 standalone VE with 4 vNICs using cloud-init.
+
+parameters:
+  ve_name:
+    type: string
+    label: F5 VE instance name (part of fqdn)
+    description: Some self-explanatory name, like ltm
+  ve_domain_name:
+    type: string
+    label: F5 VE domain name
+    description: Your VE will use instance.this domain name
+    default: openstack.lab
+  ve_image:
+    type: string
+    label: F5 VE Image
+    description: The image to be used on the compute instance.
+    constraints:
+      - custom_constraint: glance.image
+  ve_flavor:
+    type: string
+    label: F5 VE Flavor
+    description: Type of instance (flavor) to be used for the VE.
+    default: m1.medium
+    constraints:
+      - custom_constraint: nova.flavor
+  use_config_drive:
+    type: boolean
+    label: Use Config Drive
+    description: Use config drive to provider meta and user data.
+    default: true
+  f5_ve_os_ssh_key:
+    type: string
+    label: F5 FW Root SSH Key Name
+    description: Name of key-pair to be installed on the FW instances.
+    constraints:
+      - custom_constraint: nova.keypair
+  f5_ve_os_ssh_value:
+    type: string
+    label: F5 FW Root SSH Key Value
+    description: To be added to authorized_keys of VE.
+  admin_password:
+    type: string
+    label: F5 VE Admin User Password
+    description: Password used to perform image import services
+    hidden: true
+  root_password:
+    type: string
+    label: F5 VE Root User Password
+    description: Password used to perform image import services
+    hidden: true
+  bigiq_license_pool_host:
+    type: string
+    label: BIG-IQ used for pool licensing
+    description: BIG-IP will request a license from a pool license in this BIG-IQ. Specify DNS name or IP address."
+  bigiq_license_pool_name:
+    type: string
+    label: Pool license name
+    description: The pool license name as it appears in BIG-IQ
+  bigiq_license_pool_user:
+    type: string
+    label: BIG-IQ user to retrieve the license from
+    default: admin
+  bigiq_license_pool_password:
+    type: string
+    label: BIG-IQ password of the user used to retrieve the license from
+    description: BIG-IQ password
+    hidden: true
+  mgmt_network:
+    type: string
+    label: VE Management Network
+    description: Management Interface Network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  ex_mgmt_network:
+    type: string
+    label: External VE Management Network
+    description: External Management Interface Network for floating IP.
+    default: mgmt
+    constraints:
+      - custom_constraint: neutron.network
+  network_1:
+    type: string
+    label: VE Network for the 1.1 Interface
+    description: TMM 1.1 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_1_mtu:
+    type: string
+    label: VE Network mtu for the 1.1 Interface
+    description: TMM 1.1 network mtu.
+    default: 1500
+  network_1_cmp_hash:
+    type: string
+    label: cmp-hash for the 1.1 interface vlan
+    description: DAG mode for 1.1. One of default, scr-ip or dst-ip
+    default: src-ip
+  network_2:
+    type: string
+    label: VE Network for the 1.2 Interface
+    description: TMM 1.2 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_2_mtu:
+    type: string
+    label: VE Network mtu for the 1.1 Interface
+    description: TMM 1.2 network mtu.
+    default: 1500
+  network_2_cmp_hash:
+    type: string
+    label: cmp-hash for the 1.2 interface vlan
+    description: DAG mode for 1.2. One of default, scr-ip or dst-ip
+    default: dst-ip
+  network_3:
+    type: string
+    label: VE Network for the 1.3 Interface
+    description: TMM 1.3 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_3_mtu:
+    type: string
+    label: VE Network mtu for the 1.3 Interface
+    description: TMM 1.3 network mtu.
+    default: 1500
+  network_3_cmp_hash:
+    type: string
+    label: cmp-hash for the 1.3 interface vlan
+    description: DAG mode for 1.3. One of default, scr-ip or dst-ip
+    default: src-ip
+  network_4:
+    type: string
+    label: VE Network for the 1.4 Interface
+    description: TMM 1.4 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_4_mtu:
+    type: string
+    label: VE Network mtu for the 1.4 Interface
+    description: TMM 1.4 network mtu.
+    default: 1500
+  network_4_cmp_hash:
+    type: string
+    label: cmp-hash for the 1.4 interface vlan
+    description: DAG mode for 1.4. One of default, scr-ip or dst-ip
+    default: dst-ip  
+  control_network:
+    type: string
+    label: VE Network for the control
+    description: HA network.
+    default: control
+    constraints:
+      - custom_constraint: neutron.network
+  control_mtu:
+    type: string
+    label: VE Network mtu for the 1.5 Interface
+    description: TMM 1.5 network mtu.
+    default: 1500
+  control_hash:
+    type: string
+    label: cmp-hash for the ha vlan
+    description: DAG mode control. One of default, scr-ip or dst-ip
+    default: default    
+  ha_network:
+    type: string
+    label: VE Network for the HA
+    description: HA network.
+    default: ha
+    constraints:
+      - custom_constraint: neutron.network
+  ha_mtu:
+    type: string
+    label: VE Network mtu for the 1.6 Interface
+    description: TMM 1.6 network mtu.
+    default: 1500
+  ha_hash:
+    type: string
+    label: cmp-hash for the ha vlan
+    description: DAG mode ha. One of default, scr-ip or dst-ip
+    default: default
+  default_gateway:
+    type: string
+    label: Default Gateway IP
+    default: None
+    description: Upstream Gateway IP Address for VE instances
+  f5_module:
+    type: string
+    label: Main module to run in the deployed VE
+    description: One ltm afm pem
+    default: ltm
+
+parameter_groups:
+- parameters:
+  - ve_name
+  - ve_domain_name
+  - ve_image
+  - ve_flavor
+  - use_config_drive
+- parameters:
+  - f5_ve_os_ssh_key
+  - f5_ve_os_ssh_value
+  - admin_password
+  - root_password
+- parameters:
+  - bigiq_license_pool_host
+  - bigiq_license_pool_name
+  - bigiq_license_pool_user
+  - bigiq_license_pool_password
+- parameters:
+  - mgmt_network
+  - ex_mgmt_network
+  - network_1
+  - network_1_mtu
+  - network_1_cmp_hash
+  - network_2
+  - network_2_mtu
+  - network_2_cmp_hash
+  - network_3
+  - network_3_mtu
+  - network_3_cmp_hash
+  - network_4
+  - network_4_mtu
+  - network_4_cmp_hash
+  - ha_network
+  - ha_mtu
+  - ha_hash
+  - control_network
+  - control_mtu
+  - control_hash
+  - default_gateway
+
+resources:
+  mgmt_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: mgmt_network }
+      security_groups:
+        - bigip_mgmt_security_group
+  network_1_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network_1 }
+      allowed_address_pairs:
+        - ip_address: "0.0.0.0"
+      security_groups:
+        - bigip_data_security_group
+  network_2_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network_2 }
+      allowed_address_pairs:
+        - ip_address: "0.0.0.0"
+      security_groups:
+        - bigip_data_security_group
+  network_3_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network_3 }
+      allowed_address_pairs:
+        - ip_address: "0.0.0.0"
+      security_groups:
+        - bigip_data_security_group
+  network_4_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network_4 }
+      allowed_address_pairs:
+        - ip_address: "0.0.0.0"
+      security_groups:
+        - bigip_data_security_group
+  control_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: control_network }
+      allowed_address_pairs:
+        - ip_address: "0.0.0.0"
+      security_groups:
+        - bigip_data_security_group
+  ha_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: ha_network }
+      allowed_address_pairs:
+        - ip_address: "0.0.0.0"
+      security_groups:
+        - bigip_data_security_group
+  network_3_port2:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network_3 }
+      allowed_address_pairs:
+        - ip_address: "0.0.0.0"
+      security_groups:
+        - bigip_data_security_group
+  mgmt_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: ex_mgmt_network }
+  ve_instance:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: ve_name }
+      image: { get_param: ve_image }
+      flavor: { get_param: ve_flavor }
+      key_name: { get_param: f5_ve_os_ssh_key }
+      config_drive: { get_param: use_config_drive }
+      networks:
+        - port: {get_resource: mgmt_port}
+        - port: {get_resource: network_1_port}
+        - port: {get_resource: network_2_port}
+        - port: {get_resource: network_3_port}
+        - port: {get_resource: network_4_port}
+        - port: {get_resource: control_port}
+        - port: {get_resource: ha_port}
+        - port: {get_resource: network_3_port2}
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          params:
+            __fqdn__:
+              str_replace:
+                params:
+                  $ve_name: { get_param: ve_name }
+                  $ve_domain_name: { get_param: ve_domain_name }
+                template: "$ve_name.$ve_domain_name"
+            __f5_ve_os_ssh_value__: {get_param: f5_ve_os_ssh_value }
+            __admin_username__: admin
+            __admin_password__: { get_param: admin_password }
+            __root_password__: { get_param: root_password }
+            __bigiq_host__: { get_param: bigiq_license_pool_host }
+            __bigiq_user__: { get_param: bigiq_license_pool_user }
+            __bigiq_password__: { get_param: bigiq_license_pool_password }
+            __bigiq_license_pool_name__: { get_param: bigiq_license_pool_name }
+            __bigip_mgmt_address__: { get_attr: [mgmt_port, fixed_ips, 0, ip_address] }
+            __mgmt_address__: { get_attr: [mgmt_port, fixed_ips, 0, ip_address] }
+            __mgmt_cidr__: { get_attr: [mgmt_port, subnets, 0, cidr] }
+            __network_1_name__: { get_param: network_1 }
+            __network_1_address__: { get_attr: [network_1_port, fixed_ips, 0, ip_address] }
+            __network_1_cidr__: { get_attr: [network_1_port, subnets, 0, cidr] }
+            __network_1_mtu__: { get_param: network_1_mtu }
+            __network_1_cmp_hash__: { get_param: network_1_cmp_hash }
+            __network_2_name__: { get_param: network_2 }
+            __network_2_address__: { get_attr: [network_2_port, fixed_ips, 0, ip_address] }
+            __network_2_cidr__: { get_attr: [network_2_port, subnets, 0, cidr] }
+            __network_2_mtu__: { get_param: network_2_mtu }
+            __network_2_cmp_hash__: { get_param: network_2_cmp_hash }
+            __network_3_name__: { get_param: network_3 }
+            __network_3_address__: { get_attr: [network_3_port, fixed_ips, 0, ip_address] }
+            __network_3_cidr__: { get_attr: [network_3_port, subnets, 0, cidr] }
+            __network_3_mtu__: { get_param: network_3_mtu }
+            __network_3_cmp_hash__: { get_param: network_3_cmp_hash }
+            __network_4_name__: { get_param: network_4 }
+            __network_4_address__: { get_attr: [network_4_port, fixed_ips, 0, ip_address] }
+            __network_4_cidr__: { get_attr: [network_4_port, subnets, 0, cidr] }
+            __network_4_mtu__: { get_param: network_4_mtu }
+            __network_4_cmp_hash__: { get_param: network_4_cmp_hash }
+            __control_name__: { get_param: control_network }
+            __control_address__: { get_attr: [control_port, fixed_ips, 0, ip_address] }
+            __control_cidr__: { get_attr: [control_port, subnets, 0, cidr] }
+            __control_mtu__: { get_param: control_mtu }
+            __control_cmp_hash__: { get_param: control_hash }
+            __ha_name__: { get_param: ha_network }
+            __ha_address__: { get_attr: [ha_port, fixed_ips, 0, ip_address] }
+            __ha_cidr__: { get_attr: [ha_port, subnets, 0, cidr] }
+            __ha_mtu__: { get_param: ha_mtu }
+            __ha_cmp_hash__: { get_param: ha_hash }
+            __network_32_address__: { get_attr: [network_3_port2, fixed_ips, 0, ip_address] }            
+            __f5_module__: { get_param: f5_module }
+
+          template: |
+            #cloud-config
+
+            ##############################################
+            ###     EXAMPLE BIG-IP CLOUD-CONFIG        ###
+            ##############################################
+
+            write_files:
+
+              - path: /config/cloud/onboard.sh
+                permissions: 0755
+                owner: root:root
+                content: |
+                  #!/bin/bash
+
+                  # Load Input Parameters
+                  . /config/cloud/onboard_config_vars
+
+                  # Download Onboarding Libs.
+                  # Could be pre-packaged or hosted internally
+                  curl -o /config/cloud/f5-cloud-libs.tar.gz --silent --fail --retry 20 -L https://api.github.com/repos/F5Networks/f5-cloud-libs/tarball/develop
+                  tar xvzf /config/cloud/f5-cloud-libs.tar.gz -C /config/cloud/
+                  mv /config/cloud/F5Networks-f5-cloud-libs-* /config/cloud/f5-cloud-libs
+                  cd /config/cloud/f5-cloud-libs
+                  npm install --production
+
+
+                  # License / Provision
+                  f5-rest-node /config/cloud/f5-cloud-libs/scripts/onboard.js \
+                  -o  /var/log/onboard.log \
+                  --no-reboot \
+                  --host localhost \
+                  --user admin \
+                  --password "${BIGIP_ADMIN_PASSWORD}" \
+                  --update-user user:${BIGIP_ADMIN_USERNAME},password:"${BIGIP_ADMIN_PASSWORD}" \
+                  --hostname ${HOSTNAME} \
+                  --ntp 0.us.pool.ntp.org \
+                  --ntp 1.us.pool.ntp.org \
+                  --tz UTC \
+                  --dns 8.8.8.8 \
+                  --module ${F5_MODULE}:nominal \
+                  --license-pool \
+                  --big-iq-host ${BIGIQ_HOST} \
+                  --big-iq-user ${BIGIQ_USER} \
+                  --big-iq-password ${BIGIQ_PASSWORD} \
+                  --license-pool-name ${BIGIQ_LICENSE_POOL_NAME} \
+                  --big-ip-mgmt-address ${BIGIP_MGMT_ADDRESS} \
+                  --ping www.f5.com 30 15 \
+                  --global-setting mgmt-dhcp:disabled
+
+
+                  # OPENSTACK NOTES: these images still have default admin/root accounts
+
+                  ##### BEGIN NETWORK ######## not using the cloudlibs tool aswe cannot change the hash-algorithm
+                  # NOTE: mtu & port allow list to be added to network.js
+                  # f5-rest-node /config/cloud/f5-cloud-libs/scripts/network.js \
+                  # -o /var/log/onboard-network.log \
+                  # --host ${MGMT_ADDRESS} \
+                  # --user ${BIGIP_ADMIN_USERNAME} \
+                  # --password ${BIGIP_ADMIN_PASSWORD} \
+                  # --vlan ${NETWORK_1_NAME},1.1 \
+                  # --self-ip ${NETWORK_1_NAME}_self,${NETWORK_1_ADDRESS}/${NETWORK_1_PREFIX},${NETWORK_1_NAME} \
+
+                  #create HA VLAN
+                  tmsh create net vlan ${HA_NAME} mtu ${HA_MTU} interfaces add { 1.6 }
+                  tmsh modify net vlan ${HA_NAME} cmp-hash ${HA_CMP_HASH}
+                  tmsh create net self ${HA_NAME}_self address ${HA_ADDRESS}/${HA_PREFIX} vlan ${HA_NAME} allow-service add { tcp:4353 udp:1026 tcp:6123 tcp:6124 tcp:6125 tcp:6126 tcp:6127 tcp:6128 tcp:443 }
+
+
+                  #create scaleout cluster
+                  f5-rest-node /config/cloud/f5-cloud-libs/scripts/cluster.js \
+                  --output /var/log/cluster.log \
+                  --host ${MGMT_ADDRESS} \
+                  --user ${BIGIP_ADMIN_USERNAME} \
+                  --password ${BIGIP_ADMIN_PASSWORD} \
+                  --config-sync-ip ${HA_ADDRESS} \
+                  --create-group \
+                  --device-group scaleout \
+                  --device ${HOSTNAME} \
+                  --sync-type sync-only \
+                  --auto-sync
+
+
+                  #create cluster vnf
+                  f5-rest-node /config/cloud/f5-cloud-libs/scripts/cluster.js \
+                  --output /var/log/cluster.log \
+                  --host ${MGMT_ADDRESS} \
+                  --user ${BIGIP_ADMIN_USERNAME} \
+                  --password ${BIGIP_ADMIN_PASSWORD} \
+                  --config-sync-ip ${HA_ADDRESS} \
+                  --create-group \
+                  --device-group vnf \
+                  --device ${HOSTNAME} \
+                  --sync-type sync-only \
+                  --auto-sync
+
+
+                  ## configuring all the other interfaces and route domains.
+
+                  tmsh create net vlan ${NETWORK_1_NAME} mtu ${NETWORK_1_MTU} interfaces add { 1.1 }
+                  tmsh modify net vlan ${NETWORK_1_NAME} cmp-hash ${NETWORK_1_CMP_HASH}
+
+                  tmsh create net vlan ${NETWORK_2_NAME} mtu ${NETWORK_2_MTU} interfaces add { 1.2 }
+                  tmsh modify net vlan ${NETWORK_2_NAME} cmp-hash ${NETWORK_2_CMP_HASH}
+
+                  tmsh create net vlan ${NETWORK_3_NAME} mtu ${NETWORK_3_MTU} interfaces add { 1.3 }
+                  tmsh modify net vlan ${NETWORK_3_NAME} cmp-hash ${NETWORK_3_CMP_HASH}
+                  
+                  tmsh create net vlan ${NETWORK_4_NAME} mtu ${NETWORK_4_MTU} interfaces add { 1.4 }
+                  tmsh modify net vlan ${NETWORK_4_NAME} cmp-hash ${NETWORK_4_CMP_HASH}
+                  
+                  ############## This port used only for pool monitoring, to fix a cosmetic behavior on the cntrlplane VE############
+                  tmsh create net vlan ${NETWORK_3_NAME}-rd0 mtu ${NETWORK_3_MTU} interfaces add { 1.7 }
+
+                  #### Create Route domain, Associate interfaces to route domain and assign IP addresses
+
+                  tmsh create net route-domain 1 id 1 vlans  add { ${NETWORK_1_NAME} ${NETWORK_2_NAME}}
+                  tmsh create net route-domain 2 id 2 vlans  add { ${NETWORK_3_NAME} ${NETWORK_4_NAME}}
+
+
+                  tmsh create net self ${NETWORK_1_NAME}_self address ${NETWORK_1_ADDRESS}%1/${NETWORK_1_PREFIX} vlan ${NETWORK_1_NAME} allow-service add { tcp:4353 udp:1026 tcp:6123 tcp:6124 tcp:6125 tcp:6126 tcp:6127 tcp:6128 tcp:443 }
+                  tmsh create net self ${NETWORK_2_NAME}_self address ${NETWORK_2_ADDRESS}%1/${NETWORK_2_PREFIX} vlan ${NETWORK_2_NAME} allow-service add { tcp:4353 udp:1026 tcp:6123 tcp:6124 tcp:6125 tcp:6126 tcp:6127 tcp:6128 tcp:443 }
+                  
+                  tmsh create net self ${NETWORK_3_NAME}_self address ${NETWORK_3_ADDRESS}%2/${NETWORK_3_PREFIX} vlan ${NETWORK_3_NAME} allow-service add { tcp:4353 udp:1026 tcp:6123 tcp:6124 tcp:6125 tcp:6126 tcp:6127 tcp:6128 tcp:443 }
+                  tmsh create net self ${NETWORK_4_NAME}_self address ${NETWORK_4_ADDRESS}%2/${NETWORK_4_PREFIX} vlan ${NETWORK_4_NAME} allow-service add { tcp:4353 udp:1026 tcp:6123 tcp:6124 tcp:6125 tcp:6126 tcp:6127 tcp:6128 tcp:443 }
+
+                  tmsh create net self ${NETWORK_3_NAME}-rd0_self address ${NETWORK_32_ADDRESS}/${NETWORK_3_PREFIX} vlan ${NETWORK_3_NAME}RD0 allow-service add { tcp:4353 udp:1026 tcp:6123 tcp:6124 tcp:6125 tcp:6126 tcp:6127 tcp:6128 tcp:443 }
+
+                  #create partitions and associate to route domain and device groups. vnf to vnf device group and scaleout,dag-out to scaleout device group
+                  tmsh create auth partition vnf
+                  tmsh modify /sys folder /vnf device-group vnf traffic-group none
+
+                  tmsh create auth partition scaleout default-route-domain 1
+                  tmsh modify /sys folder /scaleout device-group scaleout traffic-group none
+                  tmsh create auth partition dag-out default-route-domain 2
+                  tmsh modify /sys folder /dag-out device-group scaleout traffic-group none
+ 
+                  tmsh save /sys config
+
+                  # RUN USER CUSTOM COMMANDS
+                  f5-rest-node /config/cloud/f5-cloud-libs/scripts/runScript.js \
+                  --file /config/cloud/custom-config.sh \
+                  --cwd /config/cloud \
+                  -o /var/log/custom-config.log \
+
+
+            ############ BEGIN USER CUSTOMIZE SECTION IN WRITE_FILES: ############
+
+              - path: /config/cloud/onboard_config_vars
+                permissions: 0755
+                owner: root:root
+                content: |
+                  #!/bin/bash
+
+                  HOSTNAME=__fqdn__
+
+                  BIGIP_ADMIN_USERNAME=__admin_username__
+                  BIGIP_ADMIN_PASSWORD=__admin_password__
+                  BIGIP_ROOT_PASSWORD=__root_password__
+
+                  MGMT_ADDRESS=__mgmt_address__
+                  MGMT_CIDR_BLOCK=__mgmt_cidr__
+                  MGMT_NET=${MGMT_CIDR_BLOCK%/*}
+                  MGMT_PREFIX=${MGMT_CIDR_BLOCK#*/}
+                  MGMT_MTU=1460
+
+                  NETWORK_1_NAME=__network_1_name__
+                  NETWORK_1_ADDRESS=__network_1_address__
+                  NETWORK_1_CIDR_BLOCK=__network_1_cidr__
+                  NETWORK_1_NET=${NETWORK_1_CIDR_BLOCK%/*}
+                  NETWORK_1_PREFIX=${NETWORK_1_CIDR_BLOCK#*/}
+                  NETWORK_1_MTU=__network_1_mtu__
+                  NETWORK_1_CMP_HASH=__network_1_cmp_hash__
+
+                  NETWORK_2_NAME=__network_2_name__
+                  NETWORK_2_ADDRESS=__network_2_address__
+                  NETWORK_2_CIDR_BLOCK=__network_2_cidr__
+                  NETWORK_2_NET=${NETWORK_2_CIDR_BLOCK%/*}
+                  NETWORK_2_PREFIX=${NETWORK_2_CIDR_BLOCK#*/}
+                  NETWORK_2_MTU=__network_2_mtu__
+                  NETWORK_2_CMP_HASH=__network_2_cmp_hash__
+
+                  NETWORK_3_NAME=__network_3_name__
+                  NETWORK_3_ADDRESS=__network_3_address__
+                  NETWORK_32_ADDRESS=__network_32_address__
+                  NETWORK_3_CIDR_BLOCK=__network_3_cidr__
+                  NETWORK_3_NET=${NETWORK_3_CIDR_BLOCK%/*}
+                  NETWORK_3_PREFIX=${NETWORK_3_CIDR_BLOCK#*/}
+                  NETWORK_3_MTU=__network_3_mtu__
+                  NETWORK_3_CMP_HASH=__network_3_cmp_hash__
+
+                  NETWORK_4_NAME=__network_4_name__
+                  NETWORK_4_ADDRESS=__network_4_address__
+                  NETWORK_4_CIDR_BLOCK=__network_4_cidr__
+                  NETWORK_4_NET=${NETWORK_4_CIDR_BLOCK%/*}
+                  NETWORK_4_PREFIX=${NETWORK_4_CIDR_BLOCK#*/}
+                  NETWORK_4_MTU=__network_4_mtu__
+                  NETWORK_4_CMP_HASH=__network_4_cmp_hash__
+
+                  CONTROL_NAME=__control_name__
+                  CONTROL_ADDRESS=__control_address__
+                  CONTROL_CIDR_BLOCK=__control_cidr__
+                  CONTROL_NET=${CONTROL_CIDR_BLOCK%/*}
+                  CONTROL_PREFIX=${CONTROL_CIDR_BLOCK#*/}
+                  CONTROL_MTU=__control_mtu__
+                  CONTROL_CMP_HASH=__control_cmp_hash__
+
+                  HA_NAME=__ha_name__
+                  HA_ADDRESS=__ha_address__
+                  HA_CIDR_BLOCK=__ha_cidr__
+                  HA_NET=${HA_CIDR_BLOCK%/*}
+                  HA_PREFIX=${HA_CIDR_BLOCK#*/}
+                  HA_MTU=__ha_mtu__
+                  HA_CMP_HASH=__ha_cmp_hash__
+
+
+                  BIGIQ_HOST=__bigiq_host__
+                  BIGIQ_USER=__bigiq_user__
+                  BIGIQ_PASSWORD=__bigiq_password__
+                  BIGIQ_LICENSE_POOL_NAME=__bigiq_license_pool_name__
+                  BIGIP_MGMT_ADDRESS=__bigip_mgmt_address__
+
+                  F5_VE_AUTH_KEYS='__f5_ve_os_ssh_value__'
+                  F5_MODULE=__f5_module__
+
+              - path: /config/cloud/custom-config.sh
+                permissions: 0755
+                owner: root:root
+                content: |
+                  #!/bin/bash
+
+                  ##### Load Input Parameters #####
+                  . /config/cloud/onboard_config_vars
+
+                  ##### ssh_authorized_keys MODULE NOT ENABLED #####
+                  echo ${F5_VE_AUTH_KEYS} > /home/admin/.ssh/authorized_keys
+                  echo ${F5_VE_AUTH_KEYS} > /root/.ssh/authorized_keys
+
+
+                  ##### BEGIN HIGH LEVEL CONFIG ########
+                  ###basic scaleout config, persistence profile, empty pool and basic virtual server ########
+                  tmsh create ltm profile fastl4 /scaleout/nfv_fastL4 { app-service none defaults-from fastL4 loose-close enabled loose-initialization enabled reset-on-timeout disabled }
+                  tmsh create ltm persistence source-addr /scaleout/nfv_persist { app-service none defaults-from source_addr hash-algorithm carp match-across-pools enabled match-across-services enabled match-across-virtuals enabled }
+                  tmsh  create ltm pool /scaleout/vnf monitor /Common/gateway_icmp
+                  tmsh create ltm virtual /scaleout/vnf \
+                  { destination 0.0.0.0%1:any mask any \
+                  persist replace-all-with { /scaleout/nfv_persist { default yes } } \
+                  pool /scaleout/vnf profiles replace-all-with { /scaleout/nfv_fastL4 { } } \
+                  source 0.0.0.0%1/0 translate-address disabled translate-port disabled  \
+                  vlans replace-all-with { /Common/${NETWORK_1_NAME} } vlans-enabled }
+
+
+                  ####basic dag-out config, same as scaleout dest address persistence still using CARP#####
+                  tmsh create ltm profile fastl4 /dag-out/nfv_fastL4-out { app-service none defaults-from fastL4 loose-close enabled loose-initialization enabled reset-on-timeout disabled }
+                  tmsh create ltm persistence dest-addr /dag-out/nfv_persist-out { app-service none defaults-from dest_addr hash-algorithm carp match-across-pools enabled match-across-services enabled match-across-virtuals enabled }
+                  tmsh  create ltm pool /dag-out/vnf-out
+                  tmsh create ltm virtual /dag-out/vnf-out \
+                  { destination 0.0.0.0%2:any mask any \
+                  persist replace-all-with { /dag-out/nfv_persist-out { default yes } } \
+                  pool /dag-out/vnf-out profiles replace-all-with { /dag-out/nfv_fastL4-out { } } \
+                  source 0.0.0.0%2/0 translate-address disabled translate-port disabled  \
+                  vlans replace-all-with { /Common/${NETWORK_4_NAME} } vlans-enabled }
+
+                  tmsh create ltm virtual /dag-out/vnf-in \
+                  { destination 0.0.0.0%2:any mask any \
+                  source 0.0.0.0%2/0 translate-address disabled translate-port disabled  \
+                  vlans replace-all-with { /Common/${NETWORK_3_NAME} } vlans-enabled }
+
+                  #####basic forwarding virtual server config for basic vnf behavior, pool to balance to the dag-out in case of NO-NAT ####### 
+                  tmsh create ltm pool /vnf/lbsout monitor /Common/gateway_icmp
+                  tmsh create ltm virtual /vnf/gilan-fw \
+                  { destination 0.0.0.0:any mask any \
+                  pool /vnf/lbsout \
+                  source 0.0.0.0/0 translate-address disabled translate-port disabled  \
+                  vlans replace-all-with { /Common/${NETWORK_2_NAME} } vlans-enabled }
+
+                  ##### END CONFIG ##### 
+                  tmsh save /sys config
+
+
+            # Special case command required for custom use cases
+            # bootcmd:
+
+            # NOTE: Commands must be non blocking so long running commands (polling/waiting for mcpd) should be sent to the background
+            runcmd:
+             - /config/cloud/onboard.sh &
+
+  association:
+    type: OS::Nova::FloatingIPAssociation
+    properties:
+      floating_ip: { get_resource: mgmt_floating_ip}
+      server_id: { get_resource: ve_instance }
+
+outputs:
+  ve_instance_name:
+    description: Name of the instance
+    value: { get_attr: [ve_instance, name] }
+  ve_instance_id:
+    description: ID of the instance
+    value: { get_resource: ve_instance }
+  bigiq_license_pool_name:
+    description: Big IQ Pool where License comes from
+    value: {get_param: bigiq_license_pool_name}
+  mgmt_floating_ip:
+    description: The mgmt floating IP of the instance
+    value: { get_attr: [mgmt_floating_ip, floating_ip_address] }
+  mgmt_ip:
+    description: The mgmt IP address of f5 ve instance
+    value: { get_attr: [mgmt_port, fixed_ips, 0, ip_address] }
+  mgmt_mac:
+    description: The mgmt MAC address of f5 VE instance
+    value: { get_attr: [mgmt_port, mac_address] }
+  mgmt_port:
+    description: The mgmt port id of f5 VE instance
+    value: { get_resource: mgmt_port }
+  network_1_ip:
+    description: The 1.1 Nonfloating SelfIP address of f5 ve instance
+    value: { get_attr: [network_1_port, fixed_ips, 0, ip_address] }
+  network_1_mac:
+    description: The 1.1 MAC address of f5 VE instance
+    value: { get_attr: [network_1_port, mac_address] }
+  network_1_port:
+    description: The 1.1 port id of f5 VE instance
+    value: { get_resource: network_1_port }
+  network_2_ip:
+    description: The 1.2 Nonfloating SelfIP address of f5 ve instance
+    value: { get_attr: [network_2_port, fixed_ips, 0, ip_address] }
+  network_2_mac:
+    description: The 1.2 MAC address of f5 VE instance
+    value: { get_attr: [network_2_port, mac_address] }
+  network_2_port:
+    description: The 1.2 port id of f5 VE instance
+    value: { get_resource: network_2_port }
+  network_3_ip:
+    description: The 1.3 Nonfloating SelfIP address of f5 ve instance
+    value: { get_attr: [network_3_port, fixed_ips, 0, ip_address] }
+  network_3_mac:
+    description: The 1.3 MAC address of f5 VE instance
+    value: { get_attr: [network_3_port, mac_address] }
+  network_3_port:
+    description: The 1.3 port id of f5 VE instance
+    value: { get_resource: network_3_port }
+  network_4_ip:
+    description: The 1.4 Nonfloating SelfIP address of f5 ve instance
+    value: { get_attr: [network_4_port, fixed_ips, 0, ip_address] }
+  network_4_mac:
+    description: The 1.4 MAC address of f5 VE instance
+    value: { get_attr: [network_4_port, mac_address] }
+  network_4_port:
+    description: The 1.4 port id of f5 VE instance
+    value: { get_resource: network_4_port }
+  control_ip:
+    description: The 1.5 Nonfloating SelfIP address of f5 ve instance
+    value: { get_attr: [control_port, fixed_ips, 0, ip_address] }
+  control_mac:
+    description: The 1.5 MAC address of f5 VE instance
+    value: { get_attr: [control_port, mac_address] }
+  control_port:
+    description: The 1.5 port id of f5 VE instance
+    value: { get_resource: control_port }
+  ha_ip:
+    description: The 1.6 Nonfloating SelfIP address of f5 ve instance
+    value: { get_attr: [ha_port, fixed_ips, 0, ip_address] }
+  ha_mac:
+    description: The 1.6 MAC address of f5 VE instance
+    value: { get_attr: [ha_port, mac_address] }
+  ha_port:
+    description: The 1.6 port id of f5 VE instance
+    value: { get_resource: ha_port }

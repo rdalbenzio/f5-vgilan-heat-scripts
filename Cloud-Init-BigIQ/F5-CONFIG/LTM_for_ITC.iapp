@@ -1,0 +1,138 @@
+cli admin-partitions {
+    update-partition Common
+}
+
+sys application template LTM_for_ITC {
+
+    actions {
+        definition {
+
+            implementation {
+                set cfg { ltm default-node-monitor {
+    rule none
+}
+ltm persistence source-addr nfv_persist {
+    app-service none
+    defaults-from source_addr
+    hash-algorithm carp
+    match-across-pools enabled
+    match-across-services enabled
+    match-across-virtuals enabled
+}
+ltm pool pool_AFM {
+    __pm__pool_AFM__
+    monitor gateway_icmp 
+}
+ltm profile fastl4 nfv_fastL4 {
+    app-service none
+    defaults-from fastL4
+    loose-close enabled
+    loose-initialization enabled
+    reset-on-timeout disabled
+}
+ltm virtual catchall_vs {
+    destination ltm_sync_partition/0.0.0.0:any
+    mask any
+        persist {
+        nfv_persist {
+            default yes
+        }
+    }
+    pool pool_AFM
+    profiles {
+        nfv_fastL4 { }
+    }
+    source 0.0.0.0/0
+    translate-address disabled
+    translate-port disabled
+    vs-index 6
+}
+ltm virtual http_vs {
+    destination ltm_sync_partition/0.0.0.0:http
+    ip-protocol tcp
+    mask any
+        persist {
+        nfv_persist {
+            default yes
+        }
+    }
+    pool pool_AFM
+    profiles {
+        nfv_fastL4 { }
+    }
+    source 0.0.0.0/0
+    translate-address disabled
+    translate-port disabled
+    vs-index 2
+}
+ltm virtual https_vs {
+    destination ltm_sync_partition/0.0.0.0:https
+    ip-protocol tcp
+    mask any
+        persist {
+        nfv_persist {
+            default yes
+        }
+    }
+    pool pool_AFM
+    profiles {
+        nfv_fastL4 { }
+    }
+    source 0.0.0.0/0
+    translate-address disabled
+    translate-port disabled
+    vs-index 3
+}
+ltm virtual quic_vs {
+    destination ltm_sync_partition/0.0.0.0:https
+    ip-protocol udp
+    mask any
+        persist {
+        nfv_persist {
+            default yes
+        }
+    }
+    pool pool_AFM
+    profiles {
+        udp { }
+    }
+    source 0.0.0.0/0
+    translate-address disabled
+    translate-port disabled
+    vs-index 4
+} }
+                set cfg [string map "__pm__pool_AFM__ {} __app_service__ $tmsh::app_name.app/$tmsh::app_name " $cfg]
+                set fileId [open /var/tmp/LTM_for_ITC.cfg "w"]
+                puts -nonewline $fileId $cfg
+                close $fileId
+
+                tmsh::cd "/Common"
+                tmsh::load sys config merge file /var/tmp/LTM_for_ITC.cfg
+
+
+                if {[string length ${::pm__pool_AFM}] > 0} {
+                   set cmd "tmsh::modify ltm pool pool_AFM { members replace-all-with { ${::pm__pool_AFM} } }"
+                   puts "$cmd"
+                   eval $cmd
+                }
+
+
+            }
+
+            presentation {
+
+                include "/Common/f5.apl_common"
+                section pm {
+                        string pool_AFM display "xxlarge"
+                }
+                text {
+
+                        pm "Pool members"
+                        pm.pool_AFM "Gi FW - AFM pool members"
+
+                }
+            } 
+            role-acl { admin manager resource-admin }
+        }
+    }
+}

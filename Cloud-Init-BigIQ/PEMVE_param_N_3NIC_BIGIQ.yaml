@@ -1,0 +1,25 @@
+parameters:
+  ve_amount: 2
+  ve_name_prefix: PEM-VE-
+  ve_image: BIGIP-12.1.1.2.0.204.onboarded-20170117.ALL.BigIQ
+  ve_flavor: F5VE10G_ALL.FULL_8GB_NUMA.performance
+  use_config_drive: true
+  f5_ve_os_ssh_key: DemoKey
+  admin_password: admin
+  root_password: default
+  license_method: bigiq
+  bigiq_license_pool_host: 10.103.14.84
+  bigiq_license_pool_uuid: any 
+  bigiq_license_pool_user: admin
+  bigiq_license_pool_password: admin 
+  mgmt_network: int_mgmt
+  ex_mgmt_network: mgmt
+  network_1: ltm_pem_afm_lan
+  network_1_name: ltm_pem_afm_lan
+  network_2: pem_afm_lan 
+  network_2_name: pem_afm_lan
+  heat_engine_prefix: 10.102.123.11/32
+  heat_engine_gateway: 10.103.14.1  
+
+resource_registry:
+  F5::BIGIP::StandaloneDevice3NIC: f5_ve_standalone_3_nic_vgi_BIGIQ.yaml

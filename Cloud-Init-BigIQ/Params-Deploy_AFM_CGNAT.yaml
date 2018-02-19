@@ -1,0 +1,43 @@
+parameters:
+  use_config_drive: true
+  f5_ve_os_ssh_key: DemoKey
+  f5_ve_os_ssh_value: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCmGHnFFIbr/9vh9D324J7fvF4PXcCQY8KmkGv/yhdOD1lyBhf0yPNqlgFo40+tJkZbDoBa7UCyQW3eGylVgkcoBbPqeDxmeHm2QrWWD4x8AB3mkC4O890X1KCTI/1S8ep6pVZDieBAkY/6vnoEOyvPfO8cBr/qNxlcgXRyTEl1zMXzOzJn3nqnjruk+OWhHUYOQOv8bHHhRD8ElOkfFqbEj52VwoIwLRw1FuneQIz3A/ekIYY9YY6X+4zFFqXmTL6CyURy2fa8WfPgmgqBgo3WdfbgndPjIHhN/vCCggHEJdatUjtAD25hkSVM7t4IzZ5P5PDAgmygPpb8oQ7Xkh39 Generated-by-Nova"
+
+  admin_password: admin
+  root_password: default
+  bigiq_license_pool_host: 10.103.14.84
+  bigiq_license_pool_user: admin
+  bigiq_license_pool_password: admin
+  bigiq_license_pool_name: 25_best_pool_recyclable_30_day
+
+  mgmt_network: int_mgmt
+  ex_mgmt_network: mgmt
+
+
+  afm_ve_amount: 4 
+  afm_ve_name_prefix: AFM-VE-
+  afm_ve_image: BIGIP-13.0.0.2.0.1671.HF2.ALL
+  afm_ve_flavor: F5VE10G_ALL.FULL_8GB_NUMA.performance
+
+  afm_network_1: ltm_pem_afm_lan
+  afm_network_2: pem_afm_lan
+  afm_network_3: provider-vlan3015
+  afm_network_1_name: ltm_pem_afm_lan
+  afm_network_2_name: pem_afm_lan
+  afm_network_3_name: provider-vlan3015
+
+
+
+  ltm_ve_amount: 4 
+  ltm_ve_name_prefix: LTM-VE-
+  ltm_ve_image:  BIGIP-13.0.0.2.0.1671.HF2.LTM_1SLOT
+  ltm_ve_flavor: F5VE10G_LTM_1SLOT_8GB_NUMA.performance
+
+  ltm_network_1: provider-vlan3009
+  ltm_network_1_name: provider-vlan3009
+  ltm_network_2: ltm_pem_afm_lan
+  ltm_network_2_name: ltm_pem_afm_lan
+
+resource_registry:
+  F5::BIGIP::StandaloneDevice3NIC: f5_ve_standalone_3_nic_vgi_BIGIQ.yaml
+  F5::BIGIP::StandaloneDevice4NIC: f5_ve_standalone_4_nic_vgi_afm_BIGIQ.yaml

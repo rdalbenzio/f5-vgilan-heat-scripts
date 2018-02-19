@@ -1,0 +1,185 @@
+cli admin-partitions {
+    update-partition Common
+}
+
+sys application template AFM_for_ITC {
+
+    actions {
+        definition {
+
+            implementation {
+                set cfg { ltm global-settings general {
+    share-single-mac vmw-compat
+}
+ltm global-settings traffic-control { }
+ltm persistence global-settings { }
+ltm tacdb licenseddb licensed-tacdb {
+    partition none
+}
+ltm virtual nfv_gifw {
+    destination 0.0.0.0:any
+    mask any
+    profiles {
+        fastL4 { }
+    }
+    security-nat-policy {
+        policy NFV-CGNAT-POLICY
+    }
+    source 0.0.0.0/0
+    translate-address disabled
+    translate-port disabled
+    vs-index 3
+}
+security device device-context { }
+security dos network-whitelist dos-network-whitelist { }
+security dos udp-portlist dos-udp-portlist {
+    list-type exclude-listed-ports
+}
+security firewall config-change-log {
+    log-publisher local-db-publisher
+}
+security firewall global-fqdn-policy { }
+security firewall global-rules { }
+security firewall management-ip-rules { }
+security firewall on-demand-compilation { }
+security firewall on-demand-rule-deploy { }
+security firewall port-list _sys_self_allow_tcp_defaults {
+    ports {
+        1029-1043 { }
+        domain { }
+        f5-iquery { }
+        https { }
+        snmp { }
+        ssh { }
+    }
+}
+security firewall port-list _sys_self_allow_udp_defaults {
+    ports {
+        520 { }
+        cap { }
+        domain { }
+        f5-iquery { }
+        snmp { }
+    }
+}
+security firewall rule-list _sys_self_allow_all {
+    rules {
+        _sys_allow_all {
+            action accept
+        }
+    }
+}
+security firewall rule-list _sys_self_allow_defaults {
+    rules {
+        _sys_allow_tcp_defaults {
+            action accept
+            ip-protocol tcp
+            destination {
+                port-lists {
+                    _sys_self_allow_tcp_defaults
+                }
+            }
+        }
+        _sys_allow_udp_defaults {
+            action accept
+            ip-protocol udp
+            destination {
+                port-lists {
+                    _sys_self_allow_udp_defaults
+                }
+            }
+        }
+        _sys_allow_ospf_defaults {
+            action accept
+            ip-protocol ospf
+        }
+        _sys_allow_pim_defaults {
+            action accept
+            ip-protocol pim
+        }
+        _sys_allow_igmp_defaults {
+            action accept
+            ip-protocol igmp
+        }
+    }
+}
+security firewall rule-list _sys_self_allow_management {
+    rules {
+        _sys_allow_ssh {
+            action accept
+            ip-protocol tcp
+            destination {
+                ports {
+                    ssh { }
+                }
+            }
+        }
+        _sys_allow_web {
+            action accept
+            ip-protocol tcp
+            destination {
+                ports {
+                    https { }
+                }
+            }
+        }
+    }
+}
+security ip-intelligence global-policy { }
+security ip-intelligence policy ip-intelligence { }
+security nat policy NFV-CGNAT-POLICY {
+    rules {
+        NFV-CGNAT-RULE {
+            translation {
+                source CGNAT-NFV
+            }
+        }
+    }
+}
+security nat source-translation CGNAT-NFV {
+    addresses {
+        __nat_subnet__ { }
+    }
+    egress-interfaces {
+        provider-vlan3015
+    }
+    egress-interfaces-enabled
+    port-block-allocation {
+        block-size 1024
+    }
+    ports {
+        1024-65535 { }
+    }
+    type dynamic-pat
+} }
+                set cfg [string map "__nat_subnet__ ${::var__nat_subnet} __app_service__ $tmsh::app_name.app/$tmsh::app_name " $cfg]
+                set fileId [open /var/tmp/AFM_for_ITC.cfg "w"]
+                puts -nonewline $fileId $cfg
+                close $fileId
+
+                tmsh::cd "/Common"
+                tmsh::load sys config merge file /var/tmp/AFM_for_ITC.cfg
+
+
+
+
+            }
+
+            presentation {
+
+                include "/Common/f5.apl_common"
+                section var {
+                        string nat_subnet display "xxlarge"
+                }
+
+                text {
+                        var "General variables"
+                        var.nat_subnet "__var__nat_subnet__"
+
+
+                }
+            } 
+            role-acl { admin manager resource-admin }
+        }
+    }
+}

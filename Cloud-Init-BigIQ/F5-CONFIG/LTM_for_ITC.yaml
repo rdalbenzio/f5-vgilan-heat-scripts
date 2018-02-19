@@ -1,0 +1,66 @@
+
+heat_template_version: 2015-04-30
+
+description: HEAT deployer of iApp template LTM_for_ITC
+
+
+
+parameters:
+  iapp_service_name:
+    type: string
+    label: iApp Service Name
+    default: LTM_for_ITC 
+  ve_instance:
+    type: string
+    label:  BIG-IP's IP address
+    description: Where the iApp will be deployed. Typically this is the IP address of the management interface
+  bigip_un:
+    type: string
+    label: BigIP Login Username
+    default: admin
+  bigip_pw:
+    type: string
+    label: BigIP Login Password
+    default: admin
+  pm__pool_AFM:
+    type: string
+    label: Gi FW - AFM pool members
+resources:
+  bigip_rsrc:
+    type: F5::BigIP::Device
+    properties:
+      ip: { get_param: ve_instance }
+      username: { get_param: bigip_un }
+      password: { get_param: bigip_pw }
+  partition:
+    type: F5::Sys::Partition
+    depends_on: bigip_rsrc
+    properties:
+      name: Common
+      bigip_server: { get_resource: bigip_rsrc }
+  iapp_template:
+    type: F5::Sys::iAppFullTemplate
+    depends_on: [bigip_rsrc, partition]
+    properties:
+      bigip_server: { get_resource: bigip_rsrc }
+      partition: { get_resource: partition }
+      full_template: { get_file: LTM_for_ITC.iapp }
+  iapp_service:
+    type: F5::Sys::iAppService
+    depends_on: iapp_template
+    properties:
+      bigip_server: { get_resource: bigip_rsrc }
+      partition: { get_resource: partition }
+      traffic_group: none 
+      name: { get_param: iapp_service_name }
+      template_name: LTM_for_ITC
+      variables: 
+        str_replace:
+          params:
+             _pm__pool_AFM_: { get_param: pm__pool_AFM }
+          template: |
+             [{
+                "name": "pm__pool_AFM",
+                "encrypted": "no",
+                "value": "_pm__pool_AFM_"
+              }]

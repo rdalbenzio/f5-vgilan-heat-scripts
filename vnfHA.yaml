@@ -1,0 +1,24 @@
+parameters:
+  use_config_drive: true
+  f5_ve_os_ssh_key: BIG_IP
+  f5_ve_os_ssh_value: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDInVAwDndUpAm/Nn4QlaGFCspVFct8xqsFI8SBw7OEwu2vkcyat9d8DJRlidl4Mmd+Sta/BcmFGT69Jxh9dLYc1fbXinriEjwUPT3IXs9NW3fOe7e4o0bDKy+/lCAh+G75nfzaAv3wUkFp5gW8VtrKJpO+YX/vbgF1LkCcb4lSjXhiuLK6GRS4E7sU7SrdRRKIabvmSKTDSP72aJ/Jcer7vRWo3uPk7dewNscdK5JY9Oby3exauiRxRlR4YImptVs1/BOXuHjOqv70qPERqV80dC1aERpgndl7I4cINxVV6xzjnDmyFx/vrHCAyxCmuC6Kx834GEJlJllQTwgHVZ9V Generated-by-Nova"
+  admin_password: admin
+  root_password: default
+
+  bigiq_license_pool_host: 10.103.14.84
+  bigiq_license_pool_user: admin
+  bigiq_license_pool_password: admin
+  bigiq_license_pool_name: 25_best_pool_recyclable_30_day
+  mgmt_network: int_mgmt
+  ex_mgmt_network: mgmt
+
+  ve_image:  BIGIP-13.0.0.2.0.1671.HF2.ALL
+  ve_flavor: F5VE10G_ALL.FULL_8GB_NUMA.performance
+
+  network_1: ltm-vnf 
+  network_2: provider-vlan3015 
+  ha_network: ha 
+
+  cluster_peer_address: 10.103.14.224
+
+  f5_module: afm

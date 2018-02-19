@@ -1,0 +1,25 @@
+parameters:
+  ve_amount: 3
+  ve_name_prefix: LTM-VE-
+  ve_image:  BIGIP-12.1.1.2.0.204.onboarded-20170117.LTM_1SLOT.BigIQ
+  ve_flavor: F5VE10G_LTM_1SLOT_8GB_NUMA.performance
+  use_config_drive: false
+  f5_ve_os_ssh_key: DemoKey
+  admin_password: admin
+  root_password: default
+  license_method: bigiq
+  bigiq_license_pool_host: 10.103.14.84
+  bigiq_license_pool_user: admin
+  bigiq_license_pool_password: admin 
+  bigiq_license_pool_name: 25_best_pool_recyclable_30_day
+  mgmt_network: int_mgmt
+  ex_mgmt_network: mgmt
+  network_1: provider-vlan3009
+  network_1_name: provider-vlan3009
+  network_2: ltm_pem_afm_lan
+  network_2_name: ltm_pem_afm_lan
+  heat_engine_prefix: 10.102.123.11/32
+  heat_engine_gateway: 10.103.14.1
+
+resource_registry:
+  F5::BIGIP::StandaloneDevice3NIC: f5_ve_standalone_3_nic_vgi_BIGIQ.yaml

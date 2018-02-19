@@ -1,0 +1,212 @@
+heat_template_version: 2015-04-30
+
+description: Template to deploy N different VE images attached to three data networks plus mgmt
+
+parameters:
+  ve_amount:
+    type: number
+    label: Number of VE instances
+    description: Number of VE instances to deploy
+  ve_name_prefix:
+    type: string
+    label: VE Naming prefix (ex LTM,CGN)
+    description: Prefix that helps to identify the main purpose of the deployed VEs
+    default: F5-VE-
+  ve_image:
+    type: string
+    label: F5 VE Image
+    description: The image to be used on the compute instance.
+    constraints:
+      - custom_constraint: glance.image
+  ve_flavor:
+    type: string
+    label: F5 VE Flavor
+    description: Type of instance (flavor) to be used for the VE.
+    default: m1.medium
+    constraints:
+      - custom_constraint: nova.flavor
+  use_config_drive:
+    type: boolean
+    label: Use Config Drive
+    description: Use config drive to provider meta and user data.
+    default: false
+  f5_ve_os_ssh_key:
+    type: string
+    label: F5 FW Root SSH Key Name
+    description: Name of key-pair to be installed on the FW instances.
+    constraints:
+      - custom_constraint: nova.keypair
+  f5_ve_os_ssh_value:
+    type: string
+    label: F5 FW Root SSH Key Value
+    description: To be added to authorized_keys of VE.
+  admin_password:
+    type: string
+    label: F5 VE Admin User Password
+    description: Password used to perform image import services
+    hidden: true
+  root_password:
+    type: string
+    label: F5 VE Root User Password
+    description: Password used to perform image import services
+    hidden: true
+  bigiq_license_pool_host:
+    type: string
+    label: BIG-IQ used for pool licensing
+    description: BIG-IP will request a license from a pool license in this BIG-IQ. Specify DNS name or IP address."
+  bigiq_license_pool_name:
+    type: string
+    label: Pool license name
+    description: The pool license name as it appears in BIG-IQ
+  bigiq_license_pool_user:
+    type: string
+    label: BIG-IQ user to retrieve the license from
+    default: admin
+  bigiq_license_pool_password:
+    type: string
+    label: BIG-IQ password of the user used to retrieve the license from
+    default: admin
+  mgmt_network:
+    type: string
+    label: VE Management Network
+    description: Management Interface Network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  ex_mgmt_network:
+    type: string
+    label: External VE Management Network
+    description: External Management Interface Network for floating IP.
+    default: mgmt
+    constraints:
+      - custom_constraint: neutron.network
+  network_1:
+    type: string
+    label: VE Network for the 1.1 Interface
+    description: TMM 1.1 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_1_name:
+    type: string
+    label: VE Network Name for the 1.1 Interface
+    description: TMM 1.1 network name.
+    default: network-1.1
+  network_2:
+    type: string
+    label: VE Network for the 1.2 Interface
+    description: TMM 1.2 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_2_name:
+    type: string
+    label: VE Network Name for the 1.2 Interface
+    description: TMM 1.2 network name.
+    default: network-1.2
+  network_3:
+    type: string
+    label: VE Network for the 1.3 Interface
+    description: TMM 1.3 network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_3_name:
+    type: string
+    label: VE Network Name for the 1.3 Interface
+    description: TMM 1.3 network name.
+    default: network-1.3
+  default_gateway:
+    type: string
+    label: Default Gateway IP
+    default: None
+    description: Upstream Gateway IP Address for VE instances
+
+
+parameter_groups:
+- parameters:
+  - ve_amount
+  - ve_image
+  - ve_flavor
+  - use_config_drive
+- parameters:
+  - f5_ve_os_ssh_key
+  - f5_ve_os_ssh_value
+  - admin_password
+  - root_password
+- parameters:
+  - bigiq_license_pool_host
+  - bigiq_license_pool_name
+  - bigiq_license_pool_user
+  - bigiq_license_pool_password
+- parameters:
+  - mgmt_network
+  - ex_mgmt_network
+  - network_1
+  - network_1_name
+  - network_2
+  - network_2_name
+  - network_3
+  - network_3_name
+  - default_gateway
+
+resources:
+  N_bigip_devices:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: { get_param: ve_amount }
+      resource_def:
+        # A new resource
+        type: F5::BIGIP::StandaloneDevice4NIC
+        properties:
+          ve_name:
+            str_replace:
+              template: $PREFIX%index%
+              params:
+                $PREFIX: { get_param: ve_name_prefix }
+          ve_image: { get_param: ve_image }
+          ve_flavor: { get_param: ve_flavor }
+          f5_ve_os_ssh_key: { get_param: f5_ve_os_ssh_key }
+          f5_ve_os_ssh_value: { get_param: f5_ve_os_ssh_value }
+          use_config_drive: { get_param: use_config_drive }
+          admin_password: { get_param: admin_password }
+          root_password: { get_param: root_password }
+          bigiq_license_pool_host: { get_param: bigiq_license_pool_host }
+          bigiq_license_pool_name: { get_param: bigiq_license_pool_name }
+          bigiq_license_pool_user: { get_param: bigiq_license_pool_user }
+          bigiq_license_pool_password: { get_param: bigiq_license_pool_password }
+          mgmt_network: { get_param: mgmt_network }
+          ex_mgmt_network: { get_param: ex_mgmt_network }
+          network_1: { get_param: network_1 }
+          network_2: { get_param: network_2 }
+          network_3: { get_param: network_3 }
+          network_1_name: { get_param: network_1_name }
+          network_2_name: { get_param: network_2_name }
+          network_3_name: { get_param: network_3_name }
+
+
+
+outputs:
+  mgmt_floating_ips:
+    description: IPs for mgmt of the N devices
+    value:
+      list_join: [' ', { get_attr: [N_bigip_devices, mgmt_floating_ip] } ]
+  mobile_side_pool_members:
+    description: IPs of all the VEs in the mobile side subnet
+    value:
+      list_join:
+       - " "
+       - repeat:
+          for_each:
+            <%ip>: { get_attr: [N_bigip_devices, network_1_ip] }
+          template:
+            <%ip>:0
+  internet_side_pool_members:
+    description: IP addresses of all the VEs in internet side subnet
+    value:
+      list_join:
+       - " "
+       - repeat:
+          for_each:
+            <%ip>: { get_attr: [N_bigip_devices, network_3_ip] }
+          template:
+            <%ip>:0
